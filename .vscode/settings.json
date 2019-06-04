@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "proc.h": "c",
+        "types.h": "c",
+        "defs.h": "c",
+        "mmu.h": "c",
+        "x86.h": "c",
+        "spinlock.h": "c"
+    }
+}

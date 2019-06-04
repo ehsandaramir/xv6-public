@@ -14,6 +14,18 @@ struct {
 
 static struct proc *initproc;
 
+
+struct invk {
+  int pid;
+  int syscall_id;
+};
+
+struct {
+  int inv_count;
+  struct spinlock lock;
+  struct invk invokes[NPROC * 200];
+} itable;
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -63,6 +75,27 @@ myproc(void) {
   p = c->proc;
   popcli();
   return p;
+}
+
+int
+reg_inv(int pid, int syscall_id)
+{
+  acquire(&itable.lock);
+  
+  if (itable.inv_count < NPROC * 200) {
+    struct invk new_inv ;
+    new_inv.pid = pid;
+    new_inv.syscall_id = syscall_id;
+    itable.invokes[itable.inv_count] = new_inv;
+    itable.inv_count += 1;
+  }
+  else {
+    cprintf("Invoke history table is full!");
+  }
+  
+  release(&itable.lock);
+  
+  return itable.inv_count;
 }
 
 //PAGEBREAK: 32
@@ -531,4 +564,66 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// current process status
+int
+cps() 
+{
+  struct proc *p;
+
+  // enable interrupts in this processor
+  sti();
+
+  acquire(&ptable.lock);
+
+  cprintf("name \t pid \t state \t \n");
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->state == SLEEPING)
+      cprintf("%s \t %d \t SLEEPING \t \n", p->name, p->pid);
+    if (p->state == RUNNING)
+      cprintf("%s \t %d \t RUNNING \t \n", p->name, p->pid);
+    if (p->state == RUNNABLE)
+      cprintf("%s \t %d \t RUNNABLE \t \n", p->name, p->pid);
+  }
+
+  release(&ptable.lock);
+
+  return 22;
+}
+
+int
+invoke(int pid)
+{
+  int i = 0;
+  int pid_found = 0;
+
+  acquire(&ptable.lock);
+  if (pid < nextpid && pid > 0)
+    pid_found = 1;
+  release(&ptable.lock);
+
+  acquire(&itable.lock);
+
+  if (pid == 0) {
+    for (i = 0; i < itable.inv_count; i++) {
+      struct invk *rec = &itable.invokes[i];
+      cprintf("pid: %d, syscall_id: %d \n", rec->pid, rec->syscall_id);
+    }
+  }
+  else {
+    if (pid_found == 0) {
+      cprintf("no process with pid %d \n", pid);
+    }
+    else {
+      for (i = 0; i < itable.inv_count; i++) {
+        struct invk *rec = &itable.invokes[i];
+        if (rec->pid == pid)
+          cprintf("pid: %d, syscall_id: %d \n", rec->pid, rec->syscall_id);
+      }
+    }
+  }
+
+  release(&itable.lock);
+  return 23;
 }
