@@ -6,7 +6,8 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "date.h"
+#include "invk.h"
+// #include "date.h"
 
 #ifndef SYS_COUNT
 #define SYS_COUNT 23
@@ -18,22 +19,6 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-
-
-struct invk {
-  int pid;
-  int syscall_id;
-  struct rtcdate time;
-
-  int int_params[2];
-  int int_params_c;
-
-  char *str_params[2];
-  int str_params_c;
-
-  void *void_param;
-  int void_param_c;
-};
 
 struct {
   int inv_count;
@@ -51,6 +36,7 @@ static void wakeup1(void *chan);
 void
 pinit(void)
 {
+  init_itable();
   initlock(&ptable.lock, "ptable");
 }
 
@@ -93,6 +79,16 @@ myproc(void) {
   return p;
 }
 
+void
+init_itable()
+{
+  acquire(&itable.lock);
+  itable.inv_count = 0;
+  for (int i=0; i < SYS_COUNT; i++)
+    itable.per_couner[i] = 0;
+  release(&itable.lock);
+}
+
 int
 reg_inv(int pid, int syscall_id)
 {
@@ -101,15 +97,19 @@ reg_inv(int pid, int syscall_id)
   cmostime(&curr_time);
   
   if (itable.inv_count < NPROC * 200) {
-    struct invk new_inv ;
+    struct invk new_inv;
     new_inv.pid = pid;
     new_inv.syscall_id = syscall_id;
     new_inv.time = curr_time;
 
+    new_inv.int_params_c = 0;
+    new_inv.str_params_c = 0;
+    new_inv.ptr_params_c = 0;
+
     acquire(&itable.lock);
     itable.invokes[itable.inv_count] = new_inv;
     itable.inv_count += 1;
-    itable.per_couner[syscall_id] += 1;
+    itable.per_couner[syscall_id - 1] += 1;
     release(&itable.lock);
   }
   else {
@@ -117,6 +117,16 @@ reg_inv(int pid, int syscall_id)
   }
   
   return itable.inv_count;
+}
+
+struct invk*
+last_invk() 
+{
+  struct invk *i;
+  acquire(&itable.lock);
+  i = &itable.invokes[itable.inv_count - 1];
+  release(&itable.lock);
+  return i;
 }
 
 //PAGEBREAK: 32
@@ -616,18 +626,23 @@ cps()
 void
 print_rec(struct invk *rec) 
 {
-  cprintf("%d: syscall_id: %d, time: %d ||| params: ", rec->pid, rec->syscall_id, rec->time.second);
+  cprintf("%d\t %d\t %d\t params: ", rec->pid, rec->syscall_id, rec->time.second);
   if (rec->int_params_c >= 1) {
-    cprintf("%d: int ,", rec->int_params[0]);
+    cprintf("%d: int, ", rec->int_params[0]);
   }
   if (rec->int_params_c >= 2) {
-    cprintf("%d: int ,", rec->int_params[1]);
+    cprintf("%d: int, ", rec->int_params[1]);
   }
   if (rec->str_params_c >= 1) {
-    cprintf("%s: str ,", rec->str_params[0]);
+    cprintf("%s: str, ", rec->str_params[0]);
   }
   if (rec->str_params_c >= 2) {
-    cprintf("%s: str ,", rec->str_params[1]);
+    cprintf("%s: str, ", rec->str_params[1]);
+  }
+  if (rec->ptr_params_c > 0) {
+    cprintf("ptr addrs: ");
+    for (int i=0; i < rec->ptr_params_c; i++)
+      cprintf("%d, ", (uint)rec->ptr_params[i]);
   }
   cprintf(" \n");
 }

@@ -6,6 +6,7 @@
         "mmu.h": "c",
         "x86.h": "c",
         "spinlock.h": "c",
-        "malloc.h": "c"
+        "malloc.h": "c",
+        "date.h": "c"
     }
 }
