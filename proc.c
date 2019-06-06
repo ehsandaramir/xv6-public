@@ -6,6 +6,11 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "date.h"
+
+#ifndef SYS_COUNT
+#define SYS_COUNT 23
+#endif
 
 struct {
   struct spinlock lock;
@@ -18,10 +23,21 @@ static struct proc *initproc;
 struct invk {
   int pid;
   int syscall_id;
+  struct rtcdate time;
+
+  int int_params[2];
+  int int_params_c;
+
+  char *str_params[2];
+  int str_params_c;
+
+  void *void_param;
+  int void_param_c;
 };
 
 struct {
   int inv_count;
+  int per_couner[SYS_COUNT];
   struct spinlock lock;
   struct invk invokes[NPROC * 200];
 } itable;
@@ -80,20 +96,25 @@ myproc(void) {
 int
 reg_inv(int pid, int syscall_id)
 {
-  acquire(&itable.lock);
+  // struct rtcdate *curr_time = (struct rtcdate *)kalloc();
+  struct rtcdate curr_time;
+  cmostime(&curr_time);
   
   if (itable.inv_count < NPROC * 200) {
     struct invk new_inv ;
     new_inv.pid = pid;
     new_inv.syscall_id = syscall_id;
+    new_inv.time = curr_time;
+
+    acquire(&itable.lock);
     itable.invokes[itable.inv_count] = new_inv;
     itable.inv_count += 1;
+    itable.per_couner[syscall_id] += 1;
+    release(&itable.lock);
   }
   else {
     cprintf("Invoke history table is full!");
   }
-  
-  release(&itable.lock);
   
   return itable.inv_count;
 }
@@ -592,6 +613,34 @@ cps()
   return 22;
 }
 
+void
+print_rec(struct invk *rec) 
+{
+  cprintf("%d: syscall_id: %d, time: %d ||| params: ", rec->pid, rec->syscall_id, rec->time.second);
+  if (rec->int_params_c >= 1) {
+    cprintf("%d: int ,", rec->int_params[0]);
+  }
+  if (rec->int_params_c >= 2) {
+    cprintf("%d: int ,", rec->int_params[1]);
+  }
+  if (rec->str_params_c >= 1) {
+    cprintf("%s: str ,", rec->str_params[0]);
+  }
+  if (rec->str_params_c >= 2) {
+    cprintf("%s: str ,", rec->str_params[1]);
+  }
+  cprintf(" \n");
+}
+
+void 
+print_sys_count() 
+{
+  cprintf("COUNT TABLE \n");
+  for(int i=0; i < SYS_COUNT; i++) {
+    cprintf("%d: %d\n", i + 1, itable.per_couner[i]);
+  }
+}
+
 int
 invoke(int pid)
 {
@@ -608,8 +657,9 @@ invoke(int pid)
   if (pid == 0) {
     for (i = 0; i < itable.inv_count; i++) {
       struct invk *rec = &itable.invokes[i];
-      cprintf("pid: %d, syscall_id: %d \n", rec->pid, rec->syscall_id);
+      print_rec(rec);
     }
+    print_sys_count();
   }
   else {
     if (pid_found == 0) {
@@ -619,7 +669,7 @@ invoke(int pid)
       for (i = 0; i < itable.inv_count; i++) {
         struct invk *rec = &itable.invokes[i];
         if (rec->pid == pid)
-          cprintf("pid: %d, syscall_id: %d \n", rec->pid, rec->syscall_id);
+          print_rec(rec);
       }
     }
   }

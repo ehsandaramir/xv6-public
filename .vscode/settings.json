@@ -5,6 +5,7 @@
         "defs.h": "c",
         "mmu.h": "c",
         "x86.h": "c",
-        "spinlock.h": "c"
+        "spinlock.h": "c",
+        "malloc.h": "c"
     }
 }
