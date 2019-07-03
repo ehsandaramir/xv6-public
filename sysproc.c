@@ -1,11 +1,12 @@
 #include "types.h"
 #include "x86.h"
 #include "defs.h"
-#include "date.h"
+// #include "date.h"
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "invk.h"
 
 int
 sys_fork(void)
@@ -33,6 +34,11 @@ sys_kill(void)
 
   if(argint(0, &pid) < 0)
     return -1;
+  
+  struct invk *i = last_invk();
+  i->int_params[i->int_params_c] = pid;
+  i->int_params_c++;
+  
   return kill(pid);
 }
 
@@ -50,6 +56,11 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->int_params[i->int_params_c] = n;
+  i->int_params_c++;
+  
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
@@ -64,6 +75,11 @@ sys_sleep(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  
+  struct invk *i = last_invk();
+  i->int_params[i->int_params_c] = n;
+  i->int_params_c++;
+
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -88,4 +104,24 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int
+sys_cps(void)
+{
+  return cps();
+}
+
+int
+sys_invoke(void) 
+{
+  int pid;
+  if (argint(0, &pid) < 0)
+    return -1;
+
+  struct invk *i = last_invk();
+  i->int_params[i->int_params_c] = pid;
+  i->int_params_c++;
+
+  return invoke(pid);
 }

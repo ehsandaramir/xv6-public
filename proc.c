@@ -6,6 +6,12 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "invk.h"
+// #include "date.h"
+
+#ifndef SYS_COUNT
+#define SYS_COUNT 23
+#endif
 
 struct {
   struct spinlock lock;
@@ -13,6 +19,13 @@ struct {
 } ptable;
 
 static struct proc *initproc;
+
+struct {
+  int inv_count;
+  int per_couner[SYS_COUNT];
+  struct spinlock lock;
+  struct invk invokes[NPROC * 200];
+} itable;
 
 int nextpid = 1;
 extern void forkret(void);
@@ -23,6 +36,7 @@ static void wakeup1(void *chan);
 void
 pinit(void)
 {
+  init_itable();
   initlock(&ptable.lock, "ptable");
 }
 
@@ -63,6 +77,56 @@ myproc(void) {
   p = c->proc;
   popcli();
   return p;
+}
+
+void
+init_itable()
+{
+  acquire(&itable.lock);
+  itable.inv_count = 0;
+  for (int i=0; i < SYS_COUNT; i++)
+    itable.per_couner[i] = 0;
+  release(&itable.lock);
+}
+
+int
+reg_inv(int pid, int syscall_id)
+{
+  // struct rtcdate *curr_time = (struct rtcdate *)kalloc();
+  struct rtcdate curr_time;
+  cmostime(&curr_time);
+  
+  if (itable.inv_count < NPROC * 200) {
+    struct invk new_inv;
+    new_inv.pid = pid;
+    new_inv.syscall_id = syscall_id;
+    new_inv.time = curr_time;
+
+    new_inv.int_params_c = 0;
+    new_inv.str_params_c = 0;
+    new_inv.ptr_params_c = 0;
+
+    acquire(&itable.lock);
+    itable.invokes[itable.inv_count] = new_inv;
+    itable.inv_count += 1;
+    itable.per_couner[syscall_id - 1] += 1;
+    release(&itable.lock);
+  }
+  else {
+    cprintf("Invoke history table is full!");
+  }
+  
+  return itable.inv_count;
+}
+
+struct invk*
+last_invk() 
+{
+  struct invk *i;
+  acquire(&itable.lock);
+  i = &itable.invokes[itable.inv_count - 1];
+  release(&itable.lock);
+  return i;
 }
 
 //PAGEBREAK: 32
@@ -531,4 +595,100 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// current process status
+int
+cps() 
+{
+  struct proc *p;
+
+  // enable interrupts in this processor
+  sti();
+
+  acquire(&ptable.lock);
+
+  cprintf("name \t pid \t state \t \n");
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->state == SLEEPING)
+      cprintf("%s \t %d \t SLEEPING \t \n", p->name, p->pid);
+    if (p->state == RUNNING)
+      cprintf("%s \t %d \t RUNNING \t \n", p->name, p->pid);
+    if (p->state == RUNNABLE)
+      cprintf("%s \t %d \t RUNNABLE \t \n", p->name, p->pid);
+  }
+
+  release(&ptable.lock);
+
+  return 22;
+}
+
+void
+print_rec(struct invk *rec) 
+{
+  cprintf("%d\t %d\t %d\t params: ", rec->pid, rec->syscall_id, rec->time.second);
+  if (rec->int_params_c >= 1) {
+    cprintf("%d: int, ", rec->int_params[0]);
+  }
+  if (rec->int_params_c >= 2) {
+    cprintf("%d: int, ", rec->int_params[1]);
+  }
+  if (rec->str_params_c >= 1) {
+    cprintf("%s: str, ", rec->str_params[0]);
+  }
+  if (rec->str_params_c >= 2) {
+    cprintf("%s: str, ", rec->str_params[1]);
+  }
+  if (rec->ptr_params_c > 0) {
+    cprintf("ptr addrs: ");
+    for (int i=0; i < rec->ptr_params_c; i++)
+      cprintf("%d, ", (uint)rec->ptr_params[i]);
+  }
+  cprintf(" \n");
+}
+
+void 
+print_sys_count() 
+{
+  cprintf("COUNT TABLE \n");
+  for(int i=0; i < SYS_COUNT; i++) {
+    cprintf("%d: %d\n", i + 1, itable.per_couner[i]);
+  }
+}
+
+int
+invoke(int pid)
+{
+  int i = 0;
+  int pid_found = 0;
+
+  acquire(&ptable.lock);
+  if (pid < nextpid && pid > 0)
+    pid_found = 1;
+  release(&ptable.lock);
+
+  acquire(&itable.lock);
+
+  if (pid == 0) {
+    for (i = 0; i < itable.inv_count; i++) {
+      struct invk *rec = &itable.invokes[i];
+      print_rec(rec);
+    }
+    print_sys_count();
+  }
+  else {
+    if (pid_found == 0) {
+      cprintf("no process with pid %d \n", pid);
+    }
+    else {
+      for (i = 0; i < itable.inv_count; i++) {
+        struct invk *rec = &itable.invokes[i];
+        if (rec->pid == pid)
+          print_rec(rec);
+      }
+    }
+  }
+
+  release(&itable.lock);
+  return 23;
 }

@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct invk;
 
 // bio.c
 void            binit(void);
@@ -110,6 +111,9 @@ int             growproc(int);
 int             kill(int);
 struct cpu*     mycpu(void);
 struct proc*    myproc();
+void            init_itable();
+int             reg_inv(int, int);
+struct invk*    last_invk();
 void            pinit(void);
 void            procdump(void);
 void            scheduler(void) __attribute__((noreturn));
@@ -120,6 +124,8 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+int             cps(void);
+int             invoke(int);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "invk.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -60,6 +61,11 @@ sys_dup(void)
 
   if(argfd(0, 0, &f) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = "Inode";
+  i->str_params_c++;
+  
   if((fd=fdalloc(f)) < 0)
     return -1;
   filedup(f);
@@ -75,6 +81,15 @@ sys_read(void)
 
   if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = "Inode";
+  i->str_params_c++;
+  i->int_params[i->int_params_c] = n;
+  i->int_params_c++;
+  i->ptr_params[i->ptr_params_c] = *p;
+  i->ptr_params_c++;
+  
   return fileread(f, p, n);
 }
 
@@ -87,6 +102,15 @@ sys_write(void)
 
   if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
     return -1;
+  
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = "Inode";
+  i->str_params_c++;
+  i->int_params[i->int_params_c] = n;
+  i->int_params_c++;
+  i->ptr_params[i->ptr_params_c] = *p;
+  i->ptr_params_c++;
+
   return filewrite(f, p, n);
 }
 
@@ -98,6 +122,11 @@ sys_close(void)
 
   if(argfd(0, &fd, &f) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = "Inode";
+  i->str_params_c++;
+  
   myproc()->ofile[fd] = 0;
   fileclose(f);
   return 0;
@@ -111,6 +140,13 @@ sys_fstat(void)
 
   if(argfd(0, 0, &f) < 0 || argptr(1, (void*)&st, sizeof(*st)) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = "Inode";
+  i->str_params_c++;
+  i->str_params[i->str_params_c] = "File stat";
+  i->str_params_c++;
+
   return filestat(f, st);
 }
 
@@ -123,6 +159,12 @@ sys_link(void)
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = old;
+  i->str_params_c++;
+  i->str_params[i->str_params_c] = new;
+  i->str_params_c++;
 
   begin_op();
   if((ip = namei(old)) == 0){
@@ -191,6 +233,10 @@ sys_unlink(void)
 
   if(argstr(0, &path) < 0)
     return -1;
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = path;
+  i->str_params_c++;
 
   begin_op();
   if((dp = nameiparent(path, name)) == 0){
@@ -294,6 +340,12 @@ sys_open(void)
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
 
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = path;
+  i->str_params_c++;
+  i->int_params[i->int_params_c] = omode;
+  i->int_params_c++;
+
   begin_op();
 
   if(omode & O_CREATE){
@@ -344,6 +396,11 @@ sys_mkdir(void)
     end_op();
     return -1;
   }
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = path;
+  i->str_params_c++;
+
   iunlockput(ip);
   end_op();
   return 0;
@@ -364,6 +421,15 @@ sys_mknod(void)
     end_op();
     return -1;
   }
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = path;
+  i->str_params_c++;
+  i->int_params[i->int_params_c] = major;
+  i->int_params_c++;
+  i->int_params[i->int_params_c] = minor;
+  i->int_params_c++;
+
   iunlockput(ip);
   end_op();
   return 0;
@@ -381,6 +447,11 @@ sys_chdir(void)
     end_op();
     return -1;
   }
+
+  struct invk *i = last_invk();
+  i->str_params[i->str_params_c] = path;
+  i->str_params_c++;
+
   ilock(ip);
   if(ip->type != T_DIR){
     iunlockput(ip);
@@ -404,6 +475,13 @@ sys_exec(void)
   if(argstr(0, &path) < 0 || argint(1, (int*)&uargv) < 0){
     return -1;
   }
+
+  struct invk *iv = last_invk();
+  iv->str_params[iv->str_params_c] = path;
+  iv->str_params_c++;
+  iv->int_params[iv->int_params_c] = uargv;
+  iv->int_params_c++;
+
   memset(argv, 0, sizeof(argv));
   for(i=0;; i++){
     if(i >= NELEM(argv))
@@ -429,6 +507,11 @@ sys_pipe(void)
 
   if(argptr(0, (void*)&fd, 2*sizeof(fd[0])) < 0)
     return -1;
+  
+  struct invk *i = last_invk();
+  i->int_params[i->int_params_c] = *fd;
+  i->int_params_c++;
+
   if(pipealloc(&rf, &wf) < 0)
     return -1;
   fd0 = -1;

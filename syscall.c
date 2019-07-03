@@ -103,6 +103,8 @@ extern int sys_unlink(void);
 extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
+extern int sys_cps(void);
+extern int sys_invoke(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -126,6 +128,8 @@ static int (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_cps]     sys_cps,
+[SYS_invoke]  sys_invoke,
 };
 
 void
@@ -133,9 +137,11 @@ syscall(void)
 {
   int num;
   struct proc *curproc = myproc();
-
   num = curproc->tf->eax;
+
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // cprintf("new syscall invoked \n");
+    reg_inv(curproc->pid, num);
     curproc->tf->eax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n",
