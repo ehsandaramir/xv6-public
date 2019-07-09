@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "invk.h"
+#include "rand.h"
 // #include "date.h"
 
 #ifndef SYS_COUNT
@@ -32,6 +33,21 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+
+int lottery_Total(void){
+  struct proc *p;
+  int ticket_aggregate=0;
+
+//loop over process table and increment total tickets if a runnable process is found 
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->state==RUNNABLE){
+      ticket_aggregate+=p->tickets;
+    }
+  }
+  return ticket_aggregate;          // returning total number of tickets for runnable processes
+}
 
 void
 pinit(void)
@@ -96,7 +112,7 @@ reg_inv(int pid, int syscall_id)
   struct rtcdate curr_time;
   cmostime(&curr_time);
   
-  if (itable.inv_count < NPROC * 200) {
+  if (itable.inv_count < NPROC * 1000) {
     struct invk new_inv;
     new_inv.pid = pid;
     new_inv.syscall_id = syscall_id;
@@ -152,6 +168,16 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->tickets = 10;
+  
+  uint xticks;
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+  
+  p->alloc_time = xticks;
+  p->first_cpu_time = -1;
+  cprintf("alloc %d %d\n", p->pid, ticks);
 
   release(&ptable.lock);
 
@@ -327,6 +353,15 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+
+  uint xticks;
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+  curproc->dealloc_time = xticks;
+
+  cprintf("pid: %d turnaround time: %d\n", p->pid, xticks - p->alloc_time);
+
   sched();
   panic("zombie exit");
 }
@@ -394,17 +429,40 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    int total_no_tickets = lottery_Total();
+      int chosen_ticket = 0;
+      chosen_ticket = random_at_most(total_no_tickets);
+
+      int count = 0;
+
+      // Loop over process table looking for process to run.
+      acquire(&ptable.lock);
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE)
+          continue;
+
+        if ((count + p->tickets) < chosen_ticket){
+          count += p->tickets;
         continue;
+      }
+      
+      
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
       switchuvm(p);
+      
+      if (p->first_cpu_time == -1) {
+        uint xticks;
+        acquire(&tickslock);
+        xticks = ticks;
+        release(&tickslock);
+        p->first_cpu_time = xticks;
+        cprintf("pid: %d response time: %d\n", p->pid, xticks - p->alloc_time);
+      }
+
       p->state = RUNNING;
 
       swtch(&(c->scheduler), p->context);
@@ -692,3 +750,4 @@ invoke(int pid)
   release(&itable.lock);
   return 23;
 }
+
