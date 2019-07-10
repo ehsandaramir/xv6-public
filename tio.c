@@ -6,35 +6,30 @@
 
 int main(int argc, char const *argv[])
 {
-    int k, n, id;
-    double x=0, z;
-    
-    if (argc != 3){
-        printf(1, "please enter 'c' or 'i' & pid\n");
-    }
-    else
-    {
-        n = atoi(argv[2]);
+    int k, n=6, id;
 
-        for (k=0; k <n; k++) {
-            id = fork();
-            if (id < 0) {
-                printf(1, "%d failed in fork!\n", getpid());
+    for (k=0; k <n; k++) {
+        id = fork();
+        if (id < 0) {
+            printf(1, "%d failed in fork!\n", getpid());
+        }
+        else if (id > 0) {
+            printf(1, "Parent %d creating child %d!\n", getpid(), id);
+        } else { //child
+            printf(1, "Child %d created\n", getpid());
+            int fd;
+            char *buf = "testtesttesttest";
+            for (int i=0; i < 100; i++) {
+                char* file_name = (char*)malloc(20 * sizeof(char));
+                file_name[0] = id + 57;
+                fd = open(file_name, O_WRONLY);
+                write (fd, buf, 16);
+                close (fd);
             }
-            else if (id > 0) {
-                printf(1, "Parent %d creating child %d!\n", getpid(), id);
-                // wait();
-            } else { //child
-                printf(1, "Child %d created\n", getpid());
-                for (z = 0; z < 8000000; z++) {
-                    x = x * 3.14 * 90;
-                }
-                // printf(1, "FFFF");
-                break;
-            }
+            break;
         }
     }
-    printf(1, "exec done!\n");
+    
     exit();
 }
 

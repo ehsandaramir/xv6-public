@@ -8,7 +8,8 @@
         "spinlock.h": "c",
         "malloc.h": "c",
         "date.h": "c",
-        "rand.h": "c"
+        "rand.h": "c",
+        "user.h": "c"
     },
     "workbench.colorCustomizations": {}
 }

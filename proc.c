@@ -177,7 +177,9 @@ found:
   
   p->alloc_time = xticks;
   p->first_cpu_time = -1;
-  cprintf("alloc %d %d\n", p->pid, ticks);
+
+  if (p->pid != 1)
+    cprintf("alloc %d %d\n", p->pid, ticks);
 
   release(&ptable.lock);
 
@@ -360,7 +362,7 @@ exit(void)
   release(&tickslock);
   curproc->dealloc_time = xticks;
 
-  cprintf("pid: %d turnaround time: %d\n", p->pid, xticks - p->alloc_time);
+  cprintf("pid: %d turnaround time: %d\n", curproc->pid, xticks - curproc->alloc_time);
 
   sched();
   panic("zombie exit");
@@ -456,9 +458,9 @@ scheduler(void)
       
       if (p->first_cpu_time == -1) {
         uint xticks;
-        acquire(&tickslock);
+        // acquire(&tickslock);
         xticks = ticks;
-        release(&tickslock);
+        // release(&tickslock);
         p->first_cpu_time = xticks;
         cprintf("pid: %d response time: %d\n", p->pid, xticks - p->alloc_time);
       }
