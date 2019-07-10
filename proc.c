@@ -420,6 +420,65 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+//     int total_no_tickets = lottery_Total();
+//       int chosen_ticket = 0;
+//       chosen_ticket = random_at_most(total_no_tickets);
+
+//       int count = 0;
+
+//       // Loop over process table looking for process to run.
+//       acquire(&ptable.lock);
+//       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//         if(p->state != RUNNABLE)
+//           continue;
+
+//         if ((count + p->tickets) < chosen_ticket){
+//           count += p->tickets;
+//         continue;
+//       }
+      
+      
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+      
+//       if (p->first_cpu_time == -1) {
+//         uint xticks;
+//         // acquire(&tickslock);
+//         xticks = ticks;
+//         // release(&tickslock);
+//         p->first_cpu_time = xticks;
+//         cprintf("pid: %d response time: %d\n", p->pid, xticks - p->alloc_time);
+//       }
+
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
+
 void
 scheduler(void)
 {
@@ -431,31 +490,18 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    int total_no_tickets = lottery_Total();
-      int chosen_ticket = 0;
-      chosen_ticket = random_at_most(total_no_tickets);
-
-      int count = 0;
-
-      // Loop over process table looking for process to run.
-      acquire(&ptable.lock);
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE)
-          continue;
-
-        if ((count + p->tickets) < chosen_ticket){
-          count += p->tickets;
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
         continue;
-      }
-      
-      
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       c->proc = p;
       switchuvm(p);
-      
+
       if (p->first_cpu_time == -1) {
         uint xticks;
         // acquire(&tickslock);
